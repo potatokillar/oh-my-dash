@@ -1,0 +1,26 @@
+# dsh-remote-access bundle patch: remote-client access helpers.
+# Applied after dsh-base and dsh-web-app (out-of-tree bundles land last in
+# dsh.profile.bundles), before the profile's own cordis.patch.yml.
+
+# The auto directory picker resolves to -native on a desktop host (loopback
+# bind + display), which cannot serve remote clients. Patches cannot change a
+# row's name, so disable the auto row and insert the browse backend.
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+
+    # Holds deployment-declared trusted authorities (see lib/index.js).
+    - id: remote-access
+      name: 'dsh-remote-access'
+      config:
+        hosts: []
+
+# Concatenate the deployment's extra authorities onto the fence list, the
+# officially documented pattern. The whole config is restated because a patch
+# replaces it wholesale; inject is extended so remoteAccess resolves first.
+- id: connection
+  inject: [webRuntime, remoteAccess]
+  config:
+    trustedHosts: !!js ctx.webRuntime.trustedHosts.concat(ctx.remoteAccess.hosts)

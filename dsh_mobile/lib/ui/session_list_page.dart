@@ -31,9 +31,10 @@ class _SessionListPageState extends State<SessionListPage> {
     if (mounted) setState(() {});
   }
 
-  void _openChat(String sessionId, String title) {
+  void _openChat(String sessionId, String title, {String? cwd}) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ChatPage(state: widget.state, sessionId: sessionId, title: title),
+      builder: (_) => ChatPage(
+          state: widget.state, sessionId: sessionId, title: title, cwd: cwd),
     ));
   }
 
@@ -140,7 +141,8 @@ class _SessionListPageState extends State<SessionListPage> {
                   ),
                   trailing: Text(formatTime(item.updatedAt),
                       style: Theme.of(context).textTheme.bodySmall),
-                  onTap: () => _openChat(item.sessionId, item.displayName),
+                  onTap: () => _openChat(item.sessionId, item.displayName,
+                      cwd: item.cwd),
                 );
               },
             ),

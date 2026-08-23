@@ -291,3 +291,121 @@ List<SessionSummary> sessionsForWorkspace(
           ids.contains(s.sessionId) && !archivedSessionIds.contains(s.sessionId))
       .toList();
 }
+
+// ---- session.models / session.selectModel ----
+
+/// One selectable reasoning effort of a model.
+class ModelEffort {
+  final String id;
+  final String name;
+  const ModelEffort({required this.id, required this.name});
+
+  factory ModelEffort.fromJson(Map<String, dynamic> json) => ModelEffort(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+      );
+}
+
+/// One model inside a provider group.
+class ModelInfo {
+  final String id;
+  final String name;
+  final List<ModelEffort> efforts;
+  final String? defaultEffort;
+
+  const ModelInfo({
+    required this.id,
+    required this.name,
+    this.efforts = const [],
+    this.defaultEffort,
+  });
+
+  factory ModelInfo.fromJson(Map<String, dynamic> json) {
+    final reasoning = json['reasoning'];
+    List<ModelEffort> efforts = const [];
+    String? defaultEffort;
+    if (reasoning is Map) {
+      final list = reasoning['efforts'];
+      if (list is List) {
+        efforts = list
+            .whereType<Map>()
+            .map((e) => ModelEffort.fromJson(e.cast<String, dynamic>()))
+            .toList();
+      }
+      defaultEffort = reasoning['defaultEffort'] as String?;
+    }
+    return ModelInfo(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      efforts: efforts,
+      defaultEffort: defaultEffort,
+    );
+  }
+}
+
+/// One provider and the models it advertised.
+class ProviderGroup {
+  final String id;
+  final String name;
+  final List<ModelInfo> models;
+  const ProviderGroup({required this.id, required this.name, this.models = const []});
+
+  factory ProviderGroup.fromJson(Map<String, dynamic> json) => ProviderGroup(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        models: (json['models'] is List)
+            ? (json['models'] as List)
+                .whereType<Map>()
+                .map((e) => ModelInfo.fromJson(e.cast<String, dynamic>()))
+                .toList()
+            : const [],
+      );
+}
+
+/// Complete model selection for one session.
+class ModelSelection {
+  final String provider;
+  final String model;
+  final String? reasoningEffort;
+  const ModelSelection({required this.provider, required this.model, this.reasoningEffort});
+
+  factory ModelSelection.fromJson(Map<String, dynamic> json) => ModelSelection(
+        provider: json['provider'] as String? ?? '',
+        model: json['model'] as String? ?? '',
+        reasoningEffort: json['reasoningEffort'] as String?,
+      );
+}
+
+/// `session.models` response value.
+class SessionModels {
+  final ModelSelection current;
+  final bool routable;
+  final List<ProviderGroup> groups;
+  final int failureCount;
+
+  const SessionModels({
+    required this.current,
+    required this.routable,
+    this.groups = const [],
+    this.failureCount = 0,
+  });
+
+  factory SessionModels.fromJson(Map<String, dynamic> json) {
+    final current = json['current'];
+    final groups = json['groups'];
+    final failures = json['failures'];
+    return SessionModels(
+      current: current is Map
+          ? ModelSelection.fromJson(current.cast<String, dynamic>())
+          : const ModelSelection(provider: '', model: ''),
+      routable: json['routable'] as bool? ?? true,
+      groups: groups is List
+          ? groups
+              .whereType<Map>()
+              .map((e) => ProviderGroup.fromJson(e.cast<String, dynamic>()))
+              .toList()
+          : const [],
+      failureCount: failures is List ? failures.length : 0,
+    );
+  }
+}

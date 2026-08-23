@@ -131,12 +131,46 @@ class DshApi {
   }
 
   /// Returns the raw history value: {events: [{event, view?}], hasMore, projections?}.
-  Future<Map<String, dynamic>> history(String sessionId, {int maxMessages = 200}) async {
+  /// Pass [beforeSeq] (the earliest loaded event seq) to page one window older.
+  Future<Map<String, dynamic>> history(String sessionId,
+      {int? beforeSeq, int maxMessages = 200}) async {
     final value = await rpc('session.history', {
       'sessionId': sessionId,
+      'beforeSeq': ?beforeSeq,
       'maxMessages': maxMessages,
     });
     return (value as Map).cast<String, dynamic>();
+  }
+
+  /// session.models: the model catalog + current selection for one session.
+  Future<Map<String, dynamic>> sessionModels(String sessionId) async {
+    final value = await rpc('session.models', {'sessionId': sessionId});
+    return (value as Map).cast<String, dynamic>();
+  }
+
+  /// session.selectModel: select provider/model (+optional reasoningEffort).
+  Future<Map<String, dynamic>> selectModel({
+    required String sessionId,
+    required String provider,
+    required String model,
+    String? reasoningEffort,
+  }) async {
+    final value = await rpc('session.selectModel', {
+      'sessionId': sessionId,
+      'provider': provider,
+      'model': model,
+      'reasoningEffort': ?reasoningEffort,
+    });
+    return (value as Map).cast<String, dynamic>();
+  }
+
+  /// session.rename: pin a new title; returns {title, seq}.
+  Future<String> renameSession(String sessionId, String title) async {
+    final value = await rpc('session.rename', {
+      'sessionId': sessionId,
+      'title': title,
+    });
+    return ((value as Map)['title'] as String?) ?? title;
   }
 
   Future<void> prompt(String sessionId, String text) async {

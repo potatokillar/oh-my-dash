@@ -289,4 +289,58 @@ void main() {
       expect(filtered.map((s) => s.sessionId), ['s1']);
     });
   });
+
+  group('SessionModels.fromJson', () {
+    test('parses current/routable/groups/efforts/failures', () {
+      final m = SessionModels.fromJson(jsonDecode('''
+      {
+        "current": {"provider": "deepseek-official", "model": "deepseek-v4-flash", "reasoningEffort": "low"},
+        "routable": true,
+        "groups": [
+          {
+            "id": "deepseek-official",
+            "name": "DeepSeek",
+            "models": [
+              {"id": "deepseek-v4-flash", "name": "V4 Flash"},
+              {
+                "id": "deepseek-v4-pro",
+                "name": "V4 Pro",
+                "reasoning": {
+                  "efforts": [{"id": "low", "name": "低"}, {"id": "high", "name": "高"}],
+                  "defaultEffort": "low"
+                }
+              }
+            ]
+          }
+        ],
+        "failures": [{"id": "broken", "name": "Broken", "message": "boom"}]
+      }
+      ''') as Map<String, dynamic>);
+      expect(m.current.provider, 'deepseek-official');
+      expect(m.current.model, 'deepseek-v4-flash');
+      expect(m.current.reasoningEffort, 'low');
+      expect(m.routable, isTrue);
+      expect(m.groups.single.models.length, 2);
+      final pro = m.groups.single.models[1];
+      expect(pro.efforts.map((e) => e.id), ['low', 'high']);
+      expect(pro.efforts[1].name, '高');
+      expect(pro.defaultEffort, 'low');
+      expect(m.groups.single.models[0].efforts, isEmpty);
+      expect(m.failureCount, 1);
+    });
+
+    test('tolerates missing fields', () {
+      final m = SessionModels.fromJson(const {});
+      expect(m.current.provider, '');
+      expect(m.routable, isTrue);
+      expect(m.groups, isEmpty);
+      expect(m.failureCount, 0);
+    });
+
+    test('model without reasoning has no efforts and no defaultEffort', () {
+      final info = ModelInfo.fromJson(const {'id': 'm1', 'name': 'M1'});
+      expect(info.efforts, isEmpty);
+      expect(info.defaultEffort, isNull);
+    });
+  });
 }

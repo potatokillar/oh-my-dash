@@ -47,7 +47,7 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
       if (!mounted) return;
       await widget.state.refresh();
       if (!mounted) return;
-      _openChat(sessionId, '新会话');
+      _openChat(sessionId, '新会话', cwd: widget.workspace.path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -58,10 +58,10 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
     }
   }
 
-  void _openChat(String sessionId, String title) {
+  void _openChat(String sessionId, String title, {String? cwd}) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) =>
-          ChatPage(state: widget.state, sessionId: sessionId, title: title),
+      builder: (_) => ChatPage(
+          state: widget.state, sessionId: sessionId, title: title, cwd: cwd),
     ));
   }
 
@@ -127,7 +127,8 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                     trailing: Text(formatTime(item.updatedAt),
                         style: Theme.of(context).textTheme.bodySmall),
-                    onTap: () => _openChat(item.sessionId, item.displayName),
+                    onTap: () => _openChat(item.sessionId, item.displayName,
+                        cwd: item.cwd ?? widget.workspace.path),
                   );
                 },
               ),

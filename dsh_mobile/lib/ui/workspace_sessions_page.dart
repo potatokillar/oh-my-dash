@@ -3,16 +3,24 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import 'chat_page.dart';
+import 'directory_picker_page.dart';
+import 'widgets.dart';
 
-/// Sessions of one workspace: session.list filtered by the workspace's
-/// sessionIds (archived/unknown ids dropped).
+/// Sessions of one directory (one project): session.list filtered by the
+/// sessions' cwd — grouping is keyed on cwd ONLY, never on the workspace
+/// registry. With [path] null this is the "未知目录" view (sessions with no
+/// recorded cwd).
 class WorkspaceSessionsPage extends StatefulWidget {
   final AppState state;
-  final Workspace workspace;
+
+  /// Normalized absolute path of the project; null = 未知目录 group.
+  final String? path;
+  final String title;
   const WorkspaceSessionsPage({
     super.key,
     required this.state,
-    required this.workspace,
+    required this.title,
+    this.path,
   });
 
   @override
@@ -21,6 +29,8 @@ class WorkspaceSessionsPage extends StatefulWidget {
 
 class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
   bool _creating = false;
+
+  bool get _isUnknownDir => widget.path == null;
 
   @override
   void initState() {
@@ -38,16 +48,17 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _newSession() async {
+  Future<void> _newSessionInProject() async {
     if (_creating) return;
     setState(() => _creating = true);
     try {
-      final sessionId = await widget.state.api
-          .createSession(workspaceId: widget.workspace.workspaceId);
+      // cwd is the single source of truth for grouping.
+      final sessionId =
+          await widget.state.api.createSession(cwd: widget.path);
       if (!mounted) return;
       await widget.state.refresh();
       if (!mounted) return;
-      _openChat(sessionId, '新会话', cwd: widget.workspace.path);
+      _openChat(sessionId, '新会话', cwd: widget.path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -56,6 +67,12 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
     } finally {
       if (mounted) setState(() => _creating = false);
     }
+  }
+
+  void _newSessionPickDir() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => DirectoryPickerPage(state: widget.state),
+    ));
   }
 
   void _openChat(String sessionId, String title, {String? cwd}) {
@@ -68,27 +85,36 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
-    final sessions = sessionsForWorkspace(
-        s.sessions, widget.workspace, s.archivedSessionIds);
+    final path = widget.path;
+    final sessions = path != null
+        ? (s.sessions
+            .where((item) =>
+                item.cwd != null && normalizePath(item.cwd!) == path)
+            .toList())
+        : unknownCwdSessions(s.sessions);
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.workspace.title.isEmpty
-                ? '项目会话'
-                : widget.workspace.title),
-            Text(
-              widget.workspace.path,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+        title: path == null
+            ? Text(widget.title)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.title),
+                  Text(
+                    path,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _creating ? null : _newSession,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        onPressed: _creating
+            ? null
+            : (_isUnknownDir ? _newSessionPickDir : _newSessionInProject),
         tooltip: '新建会话',
         child: _creating
             ? const SizedBox(
@@ -102,33 +128,24 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
         onRefresh: s.refresh,
         child: sessions.isEmpty
             ? ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Text('该项目下暂无会话')),
+                children: [
+                  const SizedBox(height: 140),
+                  EmptyState(
+                    icon: Icons.chat_bubble_outline,
+                    title: _isUnknownDir ? '没有未知目录的会话' : '该项目下暂无会话',
+                    hint: '点右下角 + 新建一个会话',
+                  ),
                 ],
               )
-            : ListView.separated(
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: sessions.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final item = sessions[i];
-                  return ListTile(
-                    leading: Icon(
-                      item.running
-                          ? Icons.play_circle
-                          : Icons.chat_bubble_outline,
-                      color: item.running ? Colors.greenAccent : null,
-                    ),
-                    title: Text(item.displayName,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: item.agentPreset == null
-                        ? null
-                        : Text(item.agentPreset!,
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: Text(formatTime(item.updatedAt),
-                        style: Theme.of(context).textTheme.bodySmall),
+                  return SessionTile(
+                    session: item,
                     onTap: () => _openChat(item.sessionId, item.displayName,
-                        cwd: item.cwd ?? widget.workspace.path),
+                        cwd: item.cwd ?? path),
                   );
                 },
               ),

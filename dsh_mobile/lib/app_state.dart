@@ -221,6 +221,10 @@ class AppState extends ChangeNotifier {
         workspaces = [];
         archivedSessionIds = {};
       }
+      // Archived sessions are hidden from every session surface.
+      sessions = sessions
+          .where((s) => !archivedSessionIds.contains(s.sessionId))
+          .toList();
     } catch (e) {
       error = e.toString();
     } finally {

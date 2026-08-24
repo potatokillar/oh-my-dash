@@ -122,6 +122,7 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
         // Back to the project list (refreshed via AppState listener).
         Navigator.of(context).pop();
       } else {
+        // Grouping is keyed on cwd only; always create with the picked dir.
         final sessionId =
             await widget.state.api.createSession(cwd: current);
         if (!mounted) return;

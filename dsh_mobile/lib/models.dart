@@ -4,6 +4,9 @@
 /// fake JSON payloads.
 library;
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 /// One row of `session.list`.
 class SessionSummary {
   final String sessionId;
@@ -68,8 +71,12 @@ String? extractTitle(dynamic projections) {
 /// One content block of a chat message.
 class ChatBlock {
   final bool isReasoning;
+
+  /// True for an image attachment placeholder (history carries image blocks
+  /// by reference; bytes are not rendered inline).
+  final bool isImage;
   final String text;
-  const ChatBlock(this.text, {this.isReasoning = false});
+  const ChatBlock(this.text, {this.isReasoning = false, this.isImage = false});
 }
 
 /// A renderable chat bubble.
@@ -87,12 +94,20 @@ class ChatMessage {
 }
 
 /// Concatenate the `text` blocks out of a content array, collecting
-/// `reasoning` blocks separately (assistant only).
+/// `reasoning` blocks separately (assistant only) and `image` blocks as
+/// placeholders.
 List<ChatBlock> _blocksFromContent(dynamic content) {
   final blocks = <ChatBlock>[];
   if (content is! List) return blocks;
   for (final b in content) {
     if (b is! Map) continue;
+    if (b['type'] == 'image') {
+      final name = b['name'];
+      blocks.add(ChatBlock(
+          name is String && name.isNotEmpty ? name : '图片',
+          isImage: true));
+      continue;
+    }
     final text = b['text'];
     if (text is! String || text.isEmpty) continue;
     if (b['type'] == 'text') {
@@ -267,29 +282,6 @@ class Workspace {
         createdAt: json['createdAt'] as String? ?? '',
         updatedAt: json['updatedAt'] as String? ?? '',
       );
-
-  /// Sessions accounted here minus the archived ones (grouping surfaces hide
-  /// archived sessions).
-  int visibleSessionCount(Set<String> archivedSessionIds) =>
-      sessionIds.where((id) => !archivedSessionIds.contains(id)).length;
-}
-
-/// Filter a full session list down to one workspace's sessions.
-///
-/// Membership comes from [workspace.sessionIds]; ids not present in
-/// [sessions] (archived-elsewhere, deleted, or otherwise unknown) are
-/// dropped, as are sessions in [archivedSessionIds]. Result keeps the
-/// session.list order (updatedAt descending).
-List<SessionSummary> sessionsForWorkspace(
-  List<SessionSummary> sessions,
-  Workspace workspace, [
-  Set<String> archivedSessionIds = const {},
-]) {
-  final ids = workspace.sessionIds.toSet();
-  return sessions
-      .where((s) =>
-          ids.contains(s.sessionId) && !archivedSessionIds.contains(s.sessionId))
-      .toList();
 }
 
 // ---- session.models / session.selectModel ----
@@ -408,4 +400,130 @@ class SessionModels {
       failureCount: failures is List ? failures.length : 0,
     );
   }
+}
+
+/// Normalize a host path for comparison: strip trailing slashes (except the
+/// filesystem root).
+String normalizePath(String path) {
+  if (path.length > 1) {
+    var end = path.length;
+    while (end > 1 && path[end - 1] == '/') {
+      end--;
+    }
+    return path.substring(0, end);
+  }
+  return path;
+}
+
+/// Last non-empty segment of a host path ('/' itself yields '/').
+String pathBasename(String path) {
+  final normalized = normalizePath(path);
+  if (normalized == '/') return '/';
+  final i = normalized.lastIndexOf('/');
+  return i < 0 ? normalized : normalized.substring(i + 1);
+}
+
+/// One project card of the 项目 tab: a directory and the sessions opened in
+/// it. Grouping is keyed on the sessions' cwd ONLY — the workspace registry
+/// just contributes display titles (and empty projects).
+class ProjectGroup {
+  final String path; // normalized absolute path
+  final String title;
+  final List<SessionSummary> sessions; // updatedAt descending
+  const ProjectGroup({
+    required this.path,
+    required this.title,
+    required this.sessions,
+  });
+
+  int get sessionCount => sessions.length;
+}
+
+/// Group sessions by their normalized cwd, merged with the workspace
+/// registry:
+/// - a cwd group whose path matches a workspace takes the workspace title,
+///   otherwise the path basename;
+/// - workspaces with no sessions appear as empty projects;
+/// - sessions without cwd are excluded (see [unknownCwdSessions]).
+///
+/// Groups are ordered by their latest session's updatedAt descending; empty
+/// projects go last, ordered by title.
+List<ProjectGroup> groupSessionsByCwd(
+  List<SessionSummary> sessions,
+  List<Workspace> workspaces,
+) {
+  final byPath = <String, List<SessionSummary>>{};
+  for (final s in sessions) {
+    final cwd = s.cwd;
+    if (cwd == null || cwd.isEmpty) continue;
+    byPath.putIfAbsent(normalizePath(cwd), () => []).add(s);
+  }
+  final wsTitle = <String, String>{};
+  for (final w in workspaces) {
+    if (w.path.isEmpty || w.title.isEmpty) continue;
+    wsTitle[normalizePath(w.path)] = w.title;
+  }
+  final groups = <ProjectGroup>[
+    for (final e in byPath.entries)
+      ProjectGroup(
+        path: e.key,
+        title: wsTitle[e.key] ?? pathBasename(e.key),
+        sessions: [...e.value]
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)),
+      ),
+  ];
+  // Workspaces without any session appear as empty projects.
+  for (final w in workspaces) {
+    if (w.path.isEmpty) continue;
+    final key = normalizePath(w.path);
+    if (byPath.containsKey(key)) continue;
+    groups.add(ProjectGroup(
+      path: key,
+      title: w.title.isEmpty ? pathBasename(key) : w.title,
+      sessions: const [],
+    ));
+  }
+  groups.sort((a, b) {
+    final la = a.sessions.isEmpty ? -1 : a.sessions.first.updatedAt;
+    final lb = b.sessions.isEmpty ? -1 : b.sessions.first.updatedAt;
+    if (la != lb) return lb.compareTo(la);
+    return a.title.compareTo(b.title);
+  });
+  return groups;
+}
+
+/// Sessions with no recorded cwd: the "未知目录" group (updatedAt desc).
+List<SessionSummary> unknownCwdSessions(List<SessionSummary> sessions) =>
+    sessions.where((s) => s.cwd == null || s.cwd!.isEmpty).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+// ---- prompt content assembly ----
+
+/// One image staged in the composer for sending.
+class PendingImage {
+  final Uint8List bytes;
+  final String mediaType;
+  final String name;
+  const PendingImage({
+    required this.bytes,
+    required this.mediaType,
+    required this.name,
+  });
+
+  Map<String, dynamic> toContentBlock() => {
+        'type': 'image',
+        'mediaType': mediaType,
+        'data': base64Encode(bytes),
+        'name': name,
+      };
+}
+
+/// Assemble `session.prompt` content: one text block (when the text is
+/// non-empty) followed by image blocks, matching PromptContentPart.
+List<Map<String, dynamic>> buildPromptContent(
+    String text, List<PendingImage> images) {
+  return [
+    if (text.trim().isNotEmpty) {'type': 'text', 'text': text.trim()},
+    for (final img in images) img.toContentBlock(),
+  ];
 }

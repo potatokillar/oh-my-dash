@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dsh_mobile/models.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -261,33 +262,6 @@ void main() {
       expect(w.workspaceId, '');
       expect(w.sessionIds, isEmpty);
     });
-
-    test('visibleSessionCount excludes archived', () {
-      const w = Workspace(
-          workspaceId: 'ws', path: '/p', title: 't', sessionIds: ['a', 'b', 'c']);
-      expect(w.visibleSessionCount({'b'}), 2);
-      expect(w.visibleSessionCount(const {}), 3);
-    });
-  });
-
-  group('sessionsForWorkspace', () {
-    SessionSummary sess(String id) => SessionSummary(
-        sessionId: id, updatedAt: 0, running: false, blank: false);
-    const ws = Workspace(
-        workspaceId: 'ws', path: '/p', title: 't', sessionIds: ['s1', 's2', 'ghost']);
-
-    test('keeps member sessions in session.list order', () {
-      final all = [sess('s2'), sess('other'), sess('s1')];
-      final filtered = sessionsForWorkspace(all, ws);
-      expect(filtered.map((s) => s.sessionId), ['s2', 's1']);
-    });
-
-    test('drops ids not present in session.list and archived sessions', () {
-      final all = [sess('s1'), sess('s2')];
-      expect(sessionsForWorkspace(all, ws).length, 2);
-      final filtered = sessionsForWorkspace(all, ws, {'s2'});
-      expect(filtered.map((s) => s.sessionId), ['s1']);
-    });
   });
 
   group('SessionModels.fromJson', () {
@@ -341,6 +315,180 @@ void main() {
       final info = ModelInfo.fromJson(const {'id': 'm1', 'name': 'M1'});
       expect(info.efforts, isEmpty);
       expect(info.defaultEffort, isNull);
+    });
+  });
+
+  group('normalizePath / pathBasename', () {
+    test('strips trailing slashes except root', () {
+      expect(normalizePath('/a/b/'), '/a/b');
+      expect(normalizePath('/a/b//'), '/a/b');
+      expect(normalizePath('/'), '/');
+      expect(normalizePath('//'), '/');
+      expect(normalizePath('/a'), '/a');
+    });
+
+    test('basename', () {
+      expect(pathBasename('/home/yo/workspace/oh-my-dash'), 'oh-my-dash');
+      expect(pathBasename('/home/yo/workspace/oh-my-dash/'), 'oh-my-dash');
+      expect(pathBasename('/'), '/');
+    });
+  });
+
+  group('groupSessionsByCwd', () {
+    SessionSummary sess(String id, int updatedAt, {String? cwd}) =>
+        SessionSummary(
+            sessionId: id,
+            updatedAt: updatedAt,
+            running: false,
+            blank: false,
+            cwd: cwd);
+    const ws = Workspace(
+        workspaceId: 'ws-1',
+        path: '/home/yo/workspace/researchs',
+        title: '研究工作区',
+        sessionIds: ['whatever']);
+
+    test('groups by normalized cwd, sessions sorted by updatedAt desc', () {
+      final all = [
+        sess('a1', 100, cwd: '/x/proj'),
+        sess('b1', 300, cwd: '/y'),
+        sess('a2', 200, cwd: '/x/proj/'), // trailing slash merges
+      ];
+      final groups = groupSessionsByCwd(all, const []);
+      expect(groups.length, 2);
+      // Group order: latest session first.
+      expect(groups[0].path, '/y');
+      expect(groups[1].path, '/x/proj');
+      expect(groups[1].sessions.map((s) => s.sessionId), ['a2', 'a1']);
+      expect(groups[1].title, 'proj'); // basename fallback
+    });
+
+    test('prefers workspace title for matching path', () {
+      final all = [sess('r1', 100, cwd: '/home/yo/workspace/researchs/')];
+      final groups = groupSessionsByCwd(all, [ws]);
+      expect(groups.single.title, '研究工作区');
+    });
+
+    test('workspace without sessions shows as empty project', () {
+      final groups = groupSessionsByCwd(const [], [ws]);
+      expect(groups.single.path, '/home/yo/workspace/researchs');
+      expect(groups.single.title, '研究工作区');
+      expect(groups.single.sessionCount, 0);
+    });
+
+    test('cwd group and workspace on same path merge into one card', () {
+      final all = [sess('r1', 100, cwd: '/home/yo/workspace/researchs')];
+      final groups = groupSessionsByCwd(all, [ws]);
+      expect(groups.length, 1);
+      expect(groups.single.sessionCount, 1);
+    });
+
+    test('empty projects sort after non-empty, by title', () {
+      const wsEmpty = Workspace(
+          workspaceId: 'ws-2', path: '/zzz', title: '空项目', sessionIds: []);
+      final all = [sess('a', 100, cwd: '/x')];
+      final groups = groupSessionsByCwd(all, [wsEmpty]);
+      expect(groups.map((g) => g.path), ['/x', '/zzz']);
+    });
+
+    test('sessions without cwd are excluded', () {
+      final all = [sess('noCwd', 100), sess('withCwd', 50, cwd: '/x')];
+      final groups = groupSessionsByCwd(all, const []);
+      expect(groups.single.path, '/x');
+    });
+  });
+
+  group('unknownCwdSessions', () {
+    test('collects cwd-missing sessions, updatedAt desc', () {
+      SessionSummary sess(String id, int updatedAt, {String? cwd}) =>
+          SessionSummary(
+              sessionId: id,
+              updatedAt: updatedAt,
+              running: false,
+              blank: false,
+              cwd: cwd);
+      final all = [
+        sess('u1', 100),
+        sess('k1', 300, cwd: '/x'),
+        sess('u2', 200, cwd: ''),
+      ];
+      final unknown = unknownCwdSessions(all);
+      expect(unknown.map((s) => s.sessionId), ['u2', 'u1']);
+    });
+  });
+
+  group('buildPromptContent', () {
+    PendingImage img(String name) => PendingImage(
+        bytes: Uint8List.fromList(const [1, 2, 3]),
+        mediaType: 'image/jpeg',
+        name: name);
+
+    test('text only', () {
+      final content = buildPromptContent('你好', const []);
+      expect(content, [
+        {'type': 'text', 'text': '你好'},
+      ]);
+    });
+
+    test('trims text and drops empty text block', () {
+      expect(buildPromptContent('   ', const []), isEmpty);
+      expect(buildPromptContent('  hi  ', const []).first['text'], 'hi');
+    });
+
+    test('text + images: text first, image blocks with base64', () {
+      final content = buildPromptContent('看图', [img('a.jpg'), img('b.jpg')]);
+      expect(content.length, 3);
+      expect(content[0], {'type': 'text', 'text': '看图'});
+      expect(content[1]['type'], 'image');
+      expect(content[1]['mediaType'], 'image/jpeg');
+      expect(content[1]['name'], 'a.jpg');
+      expect(content[1]['data'], base64Encode(const [1, 2, 3]));
+      expect(content[2]['name'], 'b.jpg');
+    });
+
+    test('image only is allowed', () {
+      final content = buildPromptContent('', [img('a.jpg')]);
+      expect(content.single['type'], 'image');
+    });
+  });
+
+  group('messageFromEvent image blocks', () {
+    test('user message with image renders placeholder block', () {
+      final m = messageFromEvent(jsonDecode('''
+      {
+        "type": "user/message",
+        "seq": 3,
+        "time": 1755000000000,
+        "data": {
+          "source": {"kind": "user"},
+          "content": [
+            {"type": "text", "text": "看这个"},
+            {"type": "image", "mediaType": "image/jpeg", "name": "photo.jpg", "data": "…"}
+          ]
+        }
+      }
+      ''') as Map<String, dynamic>);
+      expect(m, isNotNull);
+      expect(m!.blocks.length, 2);
+      expect(m.blocks[0].text, '看这个');
+      expect(m.blocks[1].isImage, isTrue);
+      expect(m.blocks[1].text, 'photo.jpg');
+    });
+
+    test('image block without name falls back to 图片', () {
+      final m = messageFromEvent(jsonDecode('''
+      {
+        "type": "user/message",
+        "seq": 3,
+        "time": 1755000000000,
+        "data": {
+          "source": {"kind": "user"},
+          "content": [{"type": "image", "mediaType": "image/png", "data": "…"}]
+        }
+      }
+      ''') as Map<String, dynamic>);
+      expect(m!.blocks.single.isImage, isTrue);
+      expect(m.blocks.single.text, '图片');
     });
   });
 }

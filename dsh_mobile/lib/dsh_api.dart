@@ -173,13 +173,12 @@ class DshApi {
     return ((value as Map)['title'] as String?) ?? title;
   }
 
-  Future<void> prompt(String sessionId, String text) async {
+  Future<void> prompt(
+      String sessionId, List<Map<String, dynamic>> content) async {
     await rpc('session.prompt', {
       'sessionId': sessionId,
       'mode': 'queue',
-      'content': [
-        {'type': 'text', 'text': text},
-      ],
+      'content': content,
     });
   }
 

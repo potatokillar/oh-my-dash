@@ -101,15 +101,51 @@ class _DshAppState extends State<DshApp> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF7C6CF0), // deep blue-violet
+      brightness: Brightness.dark,
+    );
     return MaterialApp(
       title: 'DSH',
       navigatorKey: _navigatorKey,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: scheme,
         useMaterial3: true,
+        scaffoldBackgroundColor: scheme.surface,
+        appBarTheme: AppBarTheme(
+          backgroundColor: scheme.surfaceContainer,
+          scrolledUnderElevation: 0,
+        ),
+        cardTheme: CardThemeData(
+          color: scheme.surfaceContainer,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: scheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: scheme.surfaceContainer,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        dividerTheme: DividerThemeData(
+          color: scheme.outlineVariant.withValues(alpha: 0.4),
+          thickness: 0.5,
+          space: 0.5,
+        ),
       ),
       themeMode: ThemeMode.dark,
       home: DeviceListPage(state: widget.state),

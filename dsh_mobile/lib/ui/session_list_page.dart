@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
-import '../models.dart';
 import 'chat_page.dart';
 import 'directory_picker_page.dart';
+import 'widgets.dart';
 
 class SessionListPage extends StatefulWidget {
   final AppState state;
@@ -71,6 +71,8 @@ class _SessionListPageState extends State<SessionListPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         onPressed: _openPicker,
         tooltip: '新建会话',
         child: const Icon(Icons.add),
@@ -115,32 +117,21 @@ class _SessionListPageState extends State<SessionListPage> {
       child: s.sessions.isEmpty
           ? ListView(
               children: const [
-                SizedBox(height: 120),
-                Center(child: Text('暂无会话，点右下角新建')),
+                SizedBox(height: 140),
+                EmptyState(
+                  icon: Icons.chat_bubble_outline,
+                  title: '暂无会话',
+                  hint: '点右下角 + 选一个目录开始新会话',
+                ),
               ],
             )
-          : ListView.separated(
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: s.sessions.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final item = s.sessions[i];
-                return ListTile(
-                  leading: Icon(
-                    item.running ? Icons.play_circle : Icons.chat_bubble_outline,
-                    color: item.running ? Colors.greenAccent : null,
-                  ),
-                  title: Text(item.displayName,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(
-                    [
-                      if (item.cwd != null) item.cwd!,
-                      if (item.agentPreset != null) item.agentPreset!,
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Text(formatTime(item.updatedAt),
-                      style: Theme.of(context).textTheme.bodySmall),
+                return SessionTile(
+                  session: item,
                   onTap: () => _openChat(item.sessionId, item.displayName,
                       cwd: item.cwd),
                 );

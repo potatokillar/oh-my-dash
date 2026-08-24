@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../app_state.dart';
 import '../event_mux.dart';
 import '../models.dart';
+import 'widgets.dart';
 
 class ChatPage extends StatefulWidget {
   final AppState state;
@@ -43,6 +45,10 @@ class _ChatPageState extends State<ChatPage> {
 
   /// session.models snapshot (null until loaded / on silent failure).
   SessionModels? _models;
+
+  /// Images staged in the composer for the next prompt.
+  final List<PendingImage> _pendingImages = [];
+  final ImagePicker _picker = ImagePicker();
 
   /// The in-progress "typing" bubble fed by assistant/chunk deltas.
   ChatMessage? _streamingBubble;
@@ -461,13 +467,35 @@ class _ChatPageState extends State<ChatPage> {
 
   // ---- prompt ----
 
+  Future<void> _pickImages() async {
+    try {
+      final files = await _picker.pickMultiImage(imageQuality: 70);
+      if (files.isEmpty || !mounted) return;
+      final added = <PendingImage>[];
+      for (final f in files) {
+        added.add(PendingImage(
+          bytes: await f.readAsBytes(),
+          mediaType: f.mimeType ?? 'image/jpeg',
+          name: f.name,
+        ));
+      }
+      setState(() => _pendingImages.addAll(added));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
+      }
+    }
+  }
+
   Future<void> _send() async {
-    final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
+    final content = buildPromptContent(_input.text, _pendingImages);
+    if (content.isEmpty || _sending || _turnActive) return;
     setState(() => _sending = true);
     try {
-      await widget.state.api.prompt(widget.sessionId, text);
+      await widget.state.api.prompt(widget.sessionId, content);
       _input.clear();
+      setState(() => _pendingImages.clear());
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -505,40 +533,10 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final modelLabel = _currentModelLabel();
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (modelLabel.isNotEmpty)
-              GestureDetector(
-                onTap: _showModelPicker,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        modelLabel,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const Icon(Icons.arrow_drop_down, size: 16),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        title: Text(_title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          if (_models != null)
-            IconButton(
-              icon: const Icon(Icons.model_training),
-              tooltip: '切换模型',
-              onPressed: _showModelPicker,
-            ),
           PopupMenuButton<String>(
             onSelected: (action) {
               if (action == 'rename') _rename();
@@ -574,17 +572,24 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: Row(
                 children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('正在思考…')),
-                  TextButton.icon(
-                    onPressed: _cancel,
-                    icon: const Icon(Icons.stop, color: Colors.redAccent),
-                    label: const Text('停止'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHigh,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(4),
+                        bottomRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: TypingDots(
+                      color:
+                          Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -610,7 +615,11 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
     if (_messages.isEmpty) {
-      return const Center(child: Text('开始对话吧'));
+      return const EmptyState(
+        icon: Icons.forum_outlined,
+        title: '开始对话吧',
+        hint: '消息会与其他端实时同步',
+      );
     }
     return ListView.builder(
       controller: _scroll,
@@ -643,38 +652,146 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildComposer() {
+    final scheme = Theme.of(context).colorScheme;
+    final modelLabel = _currentModelLabel();
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_pendingImages.isNotEmpty) _buildAttachmentStrip(),
+              TextField(
                 controller: _input,
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: '发消息…',
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
+                  border: InputBorder.none,
                   contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: _sending ? null : _send,
-              icon: const Icon(Icons.send),
-            ),
-          ],
+              Row(
+                children: [
+                  // Model picker chip.
+                  InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: _showModelPicker,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.model_training,
+                              size: 15, color: scheme.primary),
+                          const SizedBox(width: 5),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 160),
+                            child: Text(
+                              modelLabel.isEmpty ? '选择模型' : modelLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                          ),
+                          const Icon(Icons.expand_more, size: 15),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.image_outlined),
+                    tooltip: '添加图片',
+                    onPressed: _pickImages,
+                  ),
+                  const Spacer(),
+                  // Send becomes stop while a turn is running.
+                  if (_turnActive)
+                    IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(42, 42),
+                      ),
+                      onPressed: _cancel,
+                      icon: const Icon(Icons.stop_rounded, size: 20),
+                    )
+                  else
+                    IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: scheme.primary,
+                        foregroundColor: scheme.onPrimary,
+                        minimumSize: const Size(42, 42),
+                      ),
+                      onPressed: _sending ? null : _send,
+                      icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// Horizontal strip of staged image thumbnails, each with a remove ×.
+  Widget _buildAttachmentStrip() {
+    return SizedBox(
+      height: 68,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+        itemCount: _pendingImages.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final img = _pendingImages[i];
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(
+                  img.bytes,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: () => setState(() => _pendingImages.removeAt(i)),
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close,
+                        size: 12, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -687,28 +804,39 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final isUser = message.isUser;
-    final color = isUser
-        ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
+    final color =
+        isUser ? scheme.primaryContainer : scheme.surfaceContainerHigh;
+    // Asymmetric corners: the tail side keeps a small corner.
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isUser ? 16 : 4),
+      bottomRight: Radius.circular(isUser ? 4 : 16),
+    );
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        margin: EdgeInsets.only(
+          top: 6,
+          bottom: 6,
+          left: isUser ? 0 : 2,
+          right: isUser ? 2 : 0,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: BoxDecoration(color: color, borderRadius: radius),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (final block in message.blocks)
               if (block.isReasoning)
                 _ReasoningBlock(text: block.text)
+              else if (block.isImage)
+                _ImagePlaceholder(name: block.text)
               else
                 SelectableText(block.text),
             if (message.streaming)
@@ -727,6 +855,44 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// Placeholder card for an image attachment in history (bytes are not
+/// fetched; the host serves them by reference).
+class _ImagePlaceholder extends StatelessWidget {
+  final String name;
+  const _ImagePlaceholder({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.photo, size: 20, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReasoningBlock extends StatefulWidget {
   final String text;
   const _ReasoningBlock({required this.text});
@@ -740,33 +906,48 @@ class _ReasoningBlockState extends State<_ReasoningBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context)
-        .textTheme
-        .bodySmall
-        ?.copyWith(color: Colors.grey);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                size: 16,
-                color: Colors.grey,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final style = theme.textTheme.bodySmall
+        ?.copyWith(color: scheme.onSurfaceVariant);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.psychology_alt,
+                      size: 15, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 5),
+                  Text('思考过程', style: style),
+                  const SizedBox(width: 2),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 15,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
               ),
-              Text('思考过程', style: style),
-            ],
+            ),
           ),
-        ),
-        if (_expanded)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 4),
-            child: SelectableText(widget.text, style: style),
-          ),
-      ],
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: SelectableText(widget.text, style: style),
+            ),
+        ],
+      ),
     );
   }
 }

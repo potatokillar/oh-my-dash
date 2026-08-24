@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import 'device_home_page.dart';
+import 'widgets.dart';
 
 /// Probe outcome for one device row.
 class _Probe {
@@ -184,56 +185,146 @@ class _DeviceListPageState extends State<DeviceListPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('DSH 设备')),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         onPressed: () => _editDevice(),
         tooltip: '添加设备',
         child: const Icon(Icons.add),
       ),
       body: devices.isEmpty
-          ? const Center(child: Text('暂无设备，点右下角添加'))
-          : ListView.separated(
+          ? const EmptyState(
+              icon: Icons.dns_outlined,
+              title: '暂无设备',
+              hint: '点右下角 + 添加一台 dsh 主机',
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: devices.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final d = devices[i];
-                final probe = _probes[d.id];
-                return ListTile(
-                  leading: _statusIcon(probe),
-                  title: Text(d.name),
-                  subtitle: Text(
-                    [d.baseUrl, if (probe?.subtitle != null) probe!.subtitle!]
-                        .join('\n'),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+              itemBuilder: (_, i) =>
+                  _DeviceCard(
+                    device: devices[i],
+                    probe: _probes[devices[i].id],
+                    onTap: () => _openSessions(devices[i]),
+                    onEdit: () => _editDevice(existing: devices[i]),
+                    onDelete: () => _deleteDevice(devices[i]),
                   ),
-                  isThreeLine: probe?.subtitle != null,
-                  onTap: () => _openSessions(d),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (action) {
-                      if (action == 'edit') _editDevice(existing: d);
-                      if (action == 'delete') _deleteDevice(d);
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('编辑')),
-                      PopupMenuItem(value: 'delete', child: Text('删除')),
-                    ],
-                  ),
-                );
-              },
             ),
     );
   }
+}
 
-  Widget _statusIcon(_Probe? probe) {
-    if (probe == null || probe.loading) {
-      return const SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-    return Icon(
-      probe.online ? Icons.dns : Icons.cloud_off,
-      color: probe.online ? Colors.greenAccent : Colors.grey,
+class _DeviceCard extends StatelessWidget {
+  final Device device;
+  final _Probe? probe;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _DeviceCard({
+    required this.device,
+    required this.probe,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final online = probe?.online ?? false;
+    final loading = probe?.loading ?? true;
+    final statusColor =
+        loading ? theme.colorScheme.outline : (online ? Colors.greenAccent : Colors.grey);
+    final statusText = loading ? '探测中…' : (online ? '在线' : '离线');
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  IconBadge(
+                    icon: Icons.dns,
+                    color: theme.colorScheme.primary,
+                    size: 48,
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surfaceContainer,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      device.baseUrl,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline),
+                    ),
+                    if (probe?.subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        probe!.subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    ],
+                    const SizedBox(height: 5),
+                    Text(
+                      statusText,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (action) {
+                  if (action == 'edit') onEdit();
+                  if (action == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('编辑')),
+                  PopupMenuItem(value: 'delete', child: Text('删除')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

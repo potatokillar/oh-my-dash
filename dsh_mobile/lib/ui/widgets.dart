@@ -214,3 +214,177 @@ class _TypingDotsState extends State<TypingDots>
     );
   }
 }
+
+/// App-wide ambient backdrop: near-black ground with a faint accent glow in
+/// the top-right corner. Installed once via MaterialApp.builder; Scaffolds
+/// stay transparent so the glow shows through every page.
+class AmbientBackdrop extends StatelessWidget {
+  final Widget child;
+  const AmbientBackdrop({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Stack(
+      children: [
+        const Positioned.fill(child: ColoredBox(color: Color(0xFF0A0A0F))),
+        Positioned(
+          top: -140,
+          right: -100,
+          child: Container(
+            width: 340,
+            height: 340,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  accent.withValues(alpha: 0.07),
+                  accent.withValues(alpha: 0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Standard page transition: fade + slight upward slide, 220ms easeOutCubic.
+Route<T> fadeSlideRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (_, _, _) => page,
+    transitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (_, animation, _, child) {
+      final curved =
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero)
+              .animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+/// Tap feedback wrapper: scales the child down to 0.97 while pressed.
+class TapScale extends StatefulWidget {
+  final Widget child;
+  const TapScale({super.key, required this.child});
+
+  @override
+  State<TapScale> createState() => _TapScaleState();
+}
+
+class _TapScaleState extends State<TapScale> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => setState(() => _down = true),
+      onPointerUp: (_) => setState(() => _down = false),
+      onPointerCancel: (_) => setState(() => _down = false),
+      child: AnimatedScale(
+        scale: _down ? 0.97 : 1,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Skeleton loading rows: breathing grey blocks in place of a spinner.
+class SkeletonList extends StatefulWidget {
+  final int rows;
+  const SkeletonList({super.key, this.rows = 5});
+
+  @override
+  State<SkeletonList> createState() => _SkeletonListState();
+}
+
+class _SkeletonListState extends State<SkeletonList>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context).colorScheme.surfaceContainerHigh;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, _) {
+        final opacity = 0.45 + 0.4 * _controller.value;
+        return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            for (var i = 0; i < widget.rows; i++)
+              Opacity(
+                opacity: opacity,
+                child: Container(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: base,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 13,
+                              width: 140 + (i % 3) * 30.0,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.07),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 10,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}

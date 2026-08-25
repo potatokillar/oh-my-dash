@@ -70,14 +70,14 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
   }
 
   void _newSessionPickDir() {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DirectoryPickerPage(state: widget.state),
+    Navigator.of(context).push(fadeSlideRoute(
+      DirectoryPickerPage(state: widget.state),
     ));
   }
 
   void _openChat(String sessionId, String title, {String? cwd}) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ChatPage(
+    Navigator.of(context).push(fadeSlideRoute(
+      ChatPage(
           state: widget.state, sessionId: sessionId, title: title, cwd: cwd),
     ));
   }

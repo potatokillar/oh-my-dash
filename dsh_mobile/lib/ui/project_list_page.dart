@@ -35,8 +35,8 @@ class _ProjectListPageState extends State<ProjectListPage> {
   }
 
   void _addWorkspace() {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DirectoryPickerPage(
+    Navigator.of(context).push(fadeSlideRoute(
+      DirectoryPickerPage(
         state: widget.state,
         mode: PickerMode.addWorkspace,
       ),
@@ -61,7 +61,9 @@ class _ProjectListPageState extends State<ProjectListPage> {
       ),
       body: RefreshIndicator(
         onRefresh: s.refresh,
-        child: itemCount == 0
+        child: itemCount == 0 && s.loading
+            ? const SkeletonList()
+            : itemCount == 0
             ? ListView(
                 children: const [
                   SizedBox(height: 140),
@@ -93,8 +95,8 @@ class _ProjectListPageState extends State<ProjectListPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => WorkspaceSessionsPage(
+          Navigator.of(context).push(fadeSlideRoute(
+            WorkspaceSessionsPage(
               state: widget.state,
               title: g.title,
               path: g.path,
@@ -148,8 +150,8 @@ class _ProjectListPageState extends State<ProjectListPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => WorkspaceSessionsPage(
+          Navigator.of(context).push(fadeSlideRoute(
+            WorkspaceSessionsPage(
               state: widget.state,
               title: '未知目录',
             ),

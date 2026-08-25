@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'ui/device_list_page.dart';
+import 'ui/widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -150,12 +151,26 @@ class _DshAppState extends State<DshApp> {
     return MaterialApp(
       title: 'DSH',
       navigatorKey: _navigatorKey,
+      builder: (context, child) =>
+          AmbientBackdrop(child: child ?? const SizedBox.shrink()),
       theme: ThemeData(
         colorScheme: scheme,
         useMaterial3: true,
-        // Near-black backdrop: cards/dialogs keep the violet-tinted surfaces
-        // for layering, the page ground drops to almost pure black.
-        scaffoldBackgroundColor: const Color(0xFF0A0A0F),
+        fontFamily: 'Manrope',
+        // Type scale: big tight headlines, comfortable 15px body, 12px
+        // captions. CJK glyphs fall back to the system font automatically.
+        textTheme: TextTheme(
+          headlineSmall: const TextStyle(
+              fontSize: 32, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          titleLarge: const TextStyle(
+              fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          bodyMedium: const TextStyle(fontSize: 15, height: 1.5),
+          bodySmall: const TextStyle(fontSize: 12),
+          labelMedium: const TextStyle(fontSize: 12),
+          labelSmall: const TextStyle(fontSize: 12),
+        ),
+        // Pages float over the shared AmbientBackdrop.
+        scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: AppBarTheme(
           backgroundColor: scheme.surfaceContainer,
           scrolledUnderElevation: 0,

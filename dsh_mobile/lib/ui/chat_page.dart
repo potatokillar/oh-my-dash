@@ -754,7 +754,7 @@ class _ChatPageState extends State<ChatPage> {
         }
         final item = items[_loadingOlder ? i - 1 : i];
         if (item is String) return _DateSeparator(label: item);
-        return _Bubble(message: item as ChatMessage);
+        return _Entrance(child: _Bubble(message: item as ChatMessage));
       },
     );
   }
@@ -772,10 +772,11 @@ class _ChatPageState extends State<ChatPage> {
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final a = kQuickActions[i];
-          return InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _fillPrompt(a.$4),
-            child: Container(
+          return TapScale(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _fillPrompt(a.$4),
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
                 color: scheme.surfaceContainer,
@@ -793,6 +794,7 @@ class _ChatPageState extends State<ChatPage> {
                       style: Theme.of(context).textTheme.labelMedium),
                 ],
               ),
+            ),
             ),
           );
         },
@@ -817,6 +819,14 @@ class _ChatPageState extends State<ChatPage> {
                   : scheme.outlineVariant.withValues(alpha: 0.25),
               width: _inputFocus.hasFocus ? 1.5 : 1,
             ),
+            // Soft accent glow lifting the composer off the backdrop.
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
           child: Column(
@@ -1194,39 +1204,19 @@ class _EmptyChat extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Glowing orb: radial-gradient core wrapped in a soft halo.
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    scheme.primary.withValues(alpha: 0.95),
-                    scheme.primary.withValues(alpha: 0.35),
-                    scheme.primary.withValues(alpha: 0),
-                  ],
-                  stops: const [0, 0.45, 1],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: scheme.primary.withValues(alpha: 0.45),
-                    blurRadius: 60,
-                    spreadRadius: 12,
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.auto_awesome,
-                size: 34,
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
-            ),
+            // Breathing glow orb: the visual anchor of the empty state.
+            const _BreathingOrb(),
             const SizedBox(height: 28),
-            Text(
-              '有什么可以帮你？',
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            ShaderMask(
+              blendMode: BlendMode.srcIn,
+              shaderCallback: (rect) => LinearGradient(
+                colors: [scheme.primary, const Color(0xFFB9A7FF)],
+              ).createShader(rect),
+              child: Text(
+                '有什么可以帮你？',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1286,10 +1276,11 @@ class _QuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Material(
-      color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
+    return TapScale(
+      child: Material(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
@@ -1315,7 +1306,122 @@ class _QuickActionCard extends StatelessWidget {
             ],
           ),
         ),
+        ),
       ),
+    );
+  }
+}
+
+/// Pulsing accent orb anchoring the empty-chat hero: scale 0.95↔1.05 and a
+/// gently swelling halo, 3.5s mirrored easeInOut loop.
+class _BreathingOrb extends StatefulWidget {
+  const _BreathingOrb();
+
+  @override
+  State<_BreathingOrb> createState() => _BreathingOrbState();
+}
+
+class _BreathingOrbState extends State<_BreathingOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3500),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final curve =
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (_, _) {
+        final t = curve.value;
+        return Transform.scale(
+          scale: 0.95 + 0.10 * t,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  accent.withValues(alpha: 0.95),
+                  accent.withValues(alpha: 0.35),
+                  accent.withValues(alpha: 0),
+                ],
+                stops: const [0, 0.45, 1],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.35 + 0.20 * t),
+                  blurRadius: 60,
+                  spreadRadius: 12,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.auto_awesome,
+              size: 34,
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Play-once entrance for chat bubbles: fade + 8px rise, 200ms easeOutCubic.
+/// The controller lives with the element, so existing rows do not replay on
+/// rebuilds; paginated-in history animates only when first created.
+class _Entrance extends StatefulWidget {
+  final Widget child;
+  const _Entrance({required this.child});
+
+  @override
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+  late final Animation<double> _t =
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (_, child) => Opacity(
+        opacity: _t.value,
+        child: Transform.translate(
+          offset: Offset(0, 8 * (1 - _t.value)),
+          child: child,
+        ),
+      ),
+      child: widget.child,
     );
   }
 }

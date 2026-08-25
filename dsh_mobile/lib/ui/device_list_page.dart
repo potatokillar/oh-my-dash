@@ -88,8 +88,8 @@ class _DeviceListPageState extends State<DeviceListPage> {
     }
     await widget.state.selectDevice(d);
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DeviceHomePage(state: widget.state),
+    await Navigator.of(context).push(fadeSlideRoute(
+      DeviceHomePage(state: widget.state),
     ));
     // Returning from the session list: re-probe to refresh statuses.
     _probeAll();

@@ -33,15 +33,15 @@ class _SessionListPageState extends State<SessionListPage> {
   }
 
   void _openChat(String sessionId, String title, {String? cwd}) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ChatPage(
+    Navigator.of(context).push(fadeSlideRoute(
+      ChatPage(
           state: widget.state, sessionId: sessionId, title: title, cwd: cwd),
     ));
   }
 
   void _openPicker() {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DirectoryPickerPage(state: widget.state),
+    Navigator.of(context).push(fadeSlideRoute(
+      DirectoryPickerPage(state: widget.state),
     ));
   }
 
@@ -114,7 +114,7 @@ class _SessionListPageState extends State<SessionListPage> {
       );
     }
     if (s.loading && s.sessions.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList();
     }
     final items = groupSessionsByRecency(s.sessions);
     return RefreshIndicator(

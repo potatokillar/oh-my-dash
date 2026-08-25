@@ -143,8 +143,8 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
         await widget.state.refresh();
         if (!mounted) return;
         // Replace the picker with the chat so back lands on the session list.
-        await Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (_) => ChatPage(
+        await Navigator.of(context).pushReplacement(fadeSlideRoute(
+          ChatPage(
             state: widget.state,
             sessionId: sessionId,
             title: '新会话',

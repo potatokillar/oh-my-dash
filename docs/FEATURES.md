@@ -2,7 +2,7 @@
 
 > 版本：v2.0.0+9 · 本文档只描述已实现的功能，不含规划项。
 >
-> v2.0.0 起客户端由 Flutter 重写为 React + Capacitor（`dsh-mobile-react/`），功能口径不变；Flutter 旧版已从仓库移除（git 历史可查）。
+> v2.0.0 起客户端由 Flutter 重写为 React + Capacitor（`dsh-mobile/`），功能口径不变；Flutter 旧版已从仓库移除（git 历史可查）。
 
 ## 1. 设备管理
 
@@ -74,7 +74,7 @@
 
 ## 9. 工程质量
 
-- 协议层纯函数解析（报文→模型，见 `dsh-mobile-react/src/lib/dsh/protocol.ts`）；UI 与数据层分离，页面只走 `trpc.*` hooks
+- 协议层纯函数解析（报文→模型，见 `dsh-mobile/src/lib/dsh/protocol.ts`）；UI 与数据层分离，页面只走 `trpc.*` hooks
 - `npm run check`（tsc）零问题；`npm run lint` 存量 14 个错误集中在 shadcn/ui 模板组件与 trpc.tsx 导出形状，不阻断出包
 - 版本管理：`package.json` 语义化版本 + `android/app/build.gradle` 单调 versionCode，每次出包递增（流程见根目录 AGENTS.md）
 

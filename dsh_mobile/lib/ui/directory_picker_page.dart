@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import 'chat_page.dart';
+import 'widgets.dart';
 
 /// What the bottom action button of the picker does.
 enum PickerMode {
@@ -34,12 +35,19 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
   String? _error;
   bool _showHidden = false;
   bool _creating = false;
+  final ScrollController _crumbScroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
     // Initial path: the host cwd cached from the host.describe handshake.
     _load(widget.state.hostCwd);
+  }
+
+  @override
+  void dispose() {
+    _crumbScroll.dispose();
+    super.dispose();
   }
 
   Future<void> _load(String? path) async {
@@ -53,6 +61,12 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
       setState(() {
         _listing = DirectoryListing.fromJson(raw);
         _loading = false;
+      });
+      // Keep the current-directory chip visible at the end of the chain.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_crumbScroll.hasClients) {
+          _crumbScroll.jumpTo(_crumbScroll.position.maxScrollExtent);
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -151,9 +165,23 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
   @override
   Widget build(BuildContext context) {
     final isAddWorkspace = widget.mode == PickerMode.addWorkspace;
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(isAddWorkspace ? '选择项目目录' : '选择工作目录'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(isAddWorkspace ? '选择项目目录' : '选择工作目录'),
+            if (_listing != null)
+              Text(
+                _listing!.path,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.outline),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: Icon(_showHidden ? Icons.visibility : Icons.visibility_off),
@@ -176,6 +204,13 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: theme.textTheme.titleSmall,
+            ),
             onPressed: (_listing == null || _creating) ? null : _confirm,
             icon: _creating
                 ? const SizedBox(
@@ -224,11 +259,15 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
     return Column(
       children: [
         _buildCrumbs(listing),
-        const Divider(height: 1),
         Expanded(
           child: entries.isEmpty
-              ? const Center(child: Text('没有子目录'))
+              ? const EmptyState(
+                  icon: Icons.folder_open,
+                  title: '没有子目录',
+                  hint: '可直接在底部选择当前目录',
+                )
               : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: entries.length + (listing.truncated ? 1 : 0),
                   itemBuilder: (_, i) {
                     if (i >= entries.length) {
@@ -238,13 +277,47 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
                       );
                     }
                     final e = entries[i];
-                    return ListTile(
-                      leading: Icon(
-                        Icons.folder,
-                        color: e.hidden ? Colors.grey : Colors.amber,
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _load(e.path),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          child: Row(
+                            children: [
+                              IconBadge(
+                                icon: e.hidden
+                                    ? Icons.folder_off_outlined
+                                    : Icons.folder,
+                                color: e.hidden
+                                    ? Theme.of(context).colorScheme.outline
+                                    : Colors.amber,
+                                size: 40,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  e.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(
+                                          fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      title: Text(e.name),
-                      onTap: () => _load(e.path),
                     );
                   },
                 ),
@@ -253,25 +326,48 @@ class _DirectoryPickerPageState extends State<DirectoryPickerPage> {
     );
   }
 
+  /// Horizontal scrolling chip chain; the current directory is accent-lit.
   Widget _buildCrumbs(DirectoryListing listing) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 48,
+      height: 56,
       child: ListView.separated(
+        controller: _crumbScroll,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         itemCount: listing.crumbs.length,
-        separatorBuilder: (_, _) => const Icon(Icons.chevron_right, size: 16),
+        separatorBuilder: (_, _) => Icon(
+          Icons.chevron_right,
+          size: 16,
+          color: scheme.outline,
+        ),
         itemBuilder: (_, i) {
           final c = listing.crumbs[i];
           final isLast = i == listing.crumbs.length - 1;
-          return Center(
-            child: TextButton(
-              onPressed: isLast ? null : () => _load(c.path),
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: isLast ? null : () => _load(c.path),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isLast
+                    ? scheme.primary.withValues(alpha: 0.18)
+                    : scheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isLast
+                      ? scheme.primary.withValues(alpha: 0.6)
+                      : scheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
               child: Text(
                 c.name.isEmpty ? '/' : c.name,
-                style: TextStyle(
-                  fontWeight: isLast ? FontWeight.bold : FontWeight.normal,
-                ),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: isLast ? scheme.primary : null,
+                      fontWeight:
+                          isLast ? FontWeight.w600 : FontWeight.normal,
+                    ),
               ),
             ),
           );

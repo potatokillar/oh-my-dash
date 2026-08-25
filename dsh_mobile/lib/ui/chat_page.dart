@@ -29,6 +29,7 @@ class _ChatPageState extends State<ChatPage> {
   final List<ChatMessage> _messages = [];
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  final FocusNode _inputFocus = FocusNode();
 
   StreamSubscription<MuxMessage>? _sub;
   bool _loading = true;
@@ -59,6 +60,7 @@ class _ChatPageState extends State<ChatPage> {
     _title = widget.title;
     _sub = widget.state.mux.frames.listen(_onFrame);
     _scroll.addListener(_onScroll);
+    _inputFocus.addListener(() => setState(() {}));
     _loadHistory();
     _loadModels();
   }
@@ -67,6 +69,7 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _sub?.cancel();
     _input.dispose();
+    _inputFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -194,6 +197,7 @@ class _ChatPageState extends State<ChatPage> {
                 (_streamingBubble = ChatMessage(
                   isUser: false,
                   blocks: [const ChatBlock('')],
+                  time: DateTime.now().millisecondsSinceEpoch,
                   streaming: true,
                 ));
             if (!_messages.contains(bubble)) _messages.add(bubble);
@@ -272,6 +276,11 @@ class _ChatPageState extends State<ChatPage> {
         builder: (ctx, setSheet) {
           final selected = findModel();
           final efforts = selected?.efforts ?? const <ModelEffort>[];
+          final scheme = Theme.of(ctx).colorScheme;
+          final captionStyle = Theme.of(ctx)
+              .textTheme
+              .labelMedium
+              ?.copyWith(color: scheme.outline);
           return SafeArea(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -286,35 +295,94 @@ class _ChatPageState extends State<ChatPage> {
                       children: [
                         for (final g in models.groups) ...[
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
                             child: Text(g.name.isEmpty ? g.id : g.name,
-                                style:
-                                    Theme.of(ctx).textTheme.labelLarge),
+                                style: captionStyle),
                           ),
                           for (final m in g.models)
-                            ListTile(
-                              dense: true,
-                              title: Text(m.name.isEmpty ? m.id : m.name),
-                              subtitle:
-                                  m.name.isEmpty ? null : Text(m.id),
-                              trailing: (g.id == selProvider &&
-                                      m.id == selModel)
-                                  ? const Icon(Icons.check,
-                                      color: Colors.greenAccent)
-                                  : null,
-                              onTap: () => setSheet(() {
-                                selProvider = g.id;
-                                selModel = m.id;
-                                selEffort = m.defaultEffort;
-                              }),
-                            ),
+                            Builder(builder: (ctx) {
+                              final isSel =
+                                  g.id == selProvider && m.id == selModel;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 3),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () => setSheet(() {
+                                    selProvider = g.id;
+                                    selModel = m.id;
+                                    selEffort = m.defaultEffort;
+                                  }),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: scheme.surfaceContainer,
+                                      borderRadius:
+                                          BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isSel
+                                            ? scheme.primary
+                                            : scheme.outlineVariant
+                                                .withValues(alpha: 0.35),
+                                        width: isSel ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                m.name.isEmpty
+                                                    ? m.id
+                                                    : m.name,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: Theme.of(ctx)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight: isSel
+                                                          ? FontWeight.w600
+                                                          : FontWeight
+                                                              .normal,
+                                                    ),
+                                              ),
+                                              if (m.name.isNotEmpty)
+                                                Text(
+                                                  m.id,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(ctx)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                          color: scheme
+                                                              .outline),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isSel)
+                                          Icon(Icons.check_circle,
+                                              size: 20,
+                                              color: scheme.primary),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
                         ],
                         if (efforts.isNotEmpty) ...[
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                            child: Text('推理强度',
-                                style:
-                                    Theme.of(ctx).textTheme.labelLarge),
+                            padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
+                            child: Text('推理强度', style: captionStyle),
                           ),
                           Padding(
                             padding:
@@ -327,6 +395,12 @@ class _ChatPageState extends State<ChatPage> {
                                     label: Text(
                                         e.name.isEmpty ? e.id : e.name),
                                     selected: selEffort == e.id,
+                                    selectedColor: scheme.primary,
+                                    labelStyle: TextStyle(
+                                      color: selEffort == e.id
+                                          ? scheme.onPrimary
+                                          : null,
+                                    ),
                                     onSelected: (_) =>
                                         setSheet(() => selEffort = e.id),
                                   ),
@@ -336,10 +410,13 @@ class _ChatPageState extends State<ChatPage> {
                         ],
                         if (models.failureCount > 0)
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            padding: const EdgeInsets.fromLTRB(20, 12, 16, 4),
                             child: Text(
                               '${models.failureCount} 个 provider 加载失败',
-                              style: Theme.of(ctx).textTheme.bodySmall,
+                              style: Theme.of(ctx)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: scheme.outline),
                             ),
                           ),
                       ],
@@ -350,6 +427,12 @@ class _ChatPageState extends State<ChatPage> {
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                         onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('确认'),
                       ),
@@ -517,6 +600,15 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Quick-action tap: stage the prompt in the composer (never auto-send).
+  void _fillPrompt(String prompt) {
+    _input.value = TextEditingValue(
+      text: prompt,
+      selection: TextSelection.collapsed(offset: prompt.length),
+    );
+    _inputFocus.requestFocus();
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
@@ -594,6 +686,12 @@ class _ChatPageState extends State<ChatPage> {
                 ],
               ),
             ),
+          // Quick-action chips above the composer: hidden while the keyboard
+          // is up or the conversation is empty (the empty hero has its own
+          // bento grid).
+          if (_messages.isNotEmpty &&
+              MediaQuery.of(context).viewInsets.bottom == 0)
+            _buildQuickChipStrip(),
           _buildComposer(),
         ],
       ),
@@ -615,16 +713,25 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
     if (_messages.isEmpty) {
-      return const EmptyState(
-        icon: Icons.forum_outlined,
-        title: '开始对话吧',
-        hint: '消息会与其他端实时同步',
-      );
+      return _EmptyChat(onPick: _fillPrompt);
+    }
+    // Interleave a date separator wherever the calendar day changes.
+    final items = <Object>[]; // String separator label or ChatMessage
+    for (var i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      final prev = i > 0 ? _messages[i - 1] : null;
+      if (m.time > 0 &&
+          (prev == null ||
+              prev.time <= 0 ||
+              isDifferentDay(prev.time, m.time))) {
+        items.add(dateSeparatorLabel(m.time));
+      }
+      items.add(m);
     }
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(12),
-      itemCount: _messages.length + (_loadingOlder ? 1 : 0),
+      itemCount: items.length + (_loadingOlder ? 1 : 0),
       itemBuilder: (_, i) {
         if (_loadingOlder && i == 0) {
           return const Padding(
@@ -645,9 +752,51 @@ class _ChatPageState extends State<ChatPage> {
             ),
           );
         }
-        final index = _loadingOlder ? i - 1 : i;
-        return _Bubble(message: _messages[index]);
+        final item = items[_loadingOlder ? i - 1 : i];
+        if (item is String) return _DateSeparator(label: item);
+        return _Bubble(message: item as ChatMessage);
       },
+    );
+  }
+
+  /// Horizontally scrollable quick-action chips staged above the composer.
+  /// Same behavior as the empty-chat bento cards: fill, never send.
+  Widget _buildQuickChipStrip() {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        itemCount: kQuickActions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final a = kQuickActions[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _fillPrompt(a.$4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(a.$1, size: 14, color: a.$2),
+                  const SizedBox(width: 5),
+                  Text(a.$3,
+                      style: Theme.of(context).textTheme.labelMedium),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -657,10 +806,17 @@ class _ChatPageState extends State<ChatPage> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: _inputFocus.hasFocus
+                  ? scheme.primary
+                  : scheme.outlineVariant.withValues(alpha: 0.25),
+              width: _inputFocus.hasFocus ? 1.5 : 1,
+            ),
           ),
           padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
           child: Column(
@@ -670,6 +826,7 @@ class _ChatPageState extends State<ChatPage> {
               if (_pendingImages.isNotEmpty) _buildAttachmentStrip(),
               TextField(
                 controller: _input,
+                focusNode: _inputFocus,
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.send,
@@ -797,6 +954,42 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
+/// Centered date separator between message groups: muted caption with
+/// hairlines on both sides.
+class _DateSeparator extends StatelessWidget {
+  final String label;
+  const _DateSeparator({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    Widget line() => Expanded(
+          child: Container(
+            height: 0.5,
+            color: scheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          line(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              label,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: scheme.outline),
+            ),
+          ),
+          line(),
+        ],
+      ),
+    );
+  }
+}
+
 class _Bubble extends StatelessWidget {
   final ChatMessage message;
   const _Bubble({required this.message});
@@ -815,9 +1008,7 @@ class _Bubble extends StatelessWidget {
       bottomLeft: Radius.circular(isUser ? 16 : 4),
       bottomRight: Radius.circular(isUser ? 4 : 16),
     );
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+    final bubble = Container(
         margin: EdgeInsets.only(
           top: 6,
           bottom: 6,
@@ -850,6 +1041,31 @@ class _Bubble extends StatelessWidget {
               ),
           ],
         ),
+      );
+    if (isUser) {
+      return Align(alignment: Alignment.centerRight, child: bubble);
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Small accent orb marking the assistant side.
+          Container(
+            width: 26,
+            height: 26,
+            margin: const EdgeInsets.only(left: 2, bottom: 6),
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child:
+                Icon(Icons.smart_toy_outlined, size: 15, color: scheme.primary),
+          ),
+          const SizedBox(width: 8),
+          Flexible(child: bubble),
+        ],
       ),
     );
   }
@@ -947,6 +1163,158 @@ class _ReasoningBlockState extends State<_ReasoningBlock> {
               child: SelectableText(widget.text, style: style),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Quick-action definitions shared by the empty-chat bento grid and the
+/// composer chip strip: (icon, iconColor, label, prompt prefix).
+const kQuickActions = <(IconData, Color, String, String)>[
+  (Icons.code, Color(0xFF7C6CF0), '写代码', '帮我写一段代码：'),
+  (Icons.school_outlined, Color(0xFF4FC3F7), '解释概念', '用简单的语言解释一下：'),
+  (Icons.lightbulb_outline, Color(0xFFFFB74D), '头脑风暴', '我们来头脑风暴一下：'),
+  (Icons.summarize_outlined, Color(0xFF81C784), '总结文字', '帮我总结这段文字：'),
+];
+
+/// Empty-conversation hero: greeting + glowing accent orb + a 2×2 bento
+/// grid of quick actions. Tapping a card only stages its prompt in the
+/// composer; nothing is sent automatically.
+class _EmptyChat extends StatelessWidget {
+  final ValueChanged<String> onPick;
+  const _EmptyChat({required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Glowing orb: radial-gradient core wrapped in a soft halo.
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    scheme.primary.withValues(alpha: 0.95),
+                    scheme.primary.withValues(alpha: 0.35),
+                    scheme.primary.withValues(alpha: 0),
+                  ],
+                  stops: const [0, 0.45, 1],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: scheme.primary.withValues(alpha: 0.45),
+                    blurRadius: 60,
+                    spreadRadius: 12,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.auto_awesome,
+                size: 34,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              '有什么可以帮你？',
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '消息会与其他端实时同步',
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: scheme.outline),
+            ),
+            const SizedBox(height: 28),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var r = 0; r < 2; r++) ...[
+                    if (r > 0) const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        for (var c = 0; c < 2; c++) ...[
+                          if (c > 0) const SizedBox(width: 10),
+                          Expanded(
+                            child: _QuickActionCard(
+                              icon: kQuickActions[r * 2 + c].$1,
+                              color: kQuickActions[r * 2 + c].$2,
+                              label: kQuickActions[r * 2 + c].$3,
+                              onTap: () =>
+                                  onPick(kQuickActions[r * 2 + c].$4),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One bento cell of the empty-chat quick-action grid.
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickActionCard({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 19, color: color),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

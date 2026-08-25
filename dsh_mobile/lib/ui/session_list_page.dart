@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../models.dart';
 import 'chat_page.dart';
 import 'directory_picker_page.dart';
 import 'widgets.dart';
@@ -52,11 +53,14 @@ class _SessionListPageState extends State<SessionListPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(s.currentDevice?.name ?? 'DSH 会话'),
+            Text(s.currentDevice?.name ?? '会话'),
             if (s.currentDevice != null)
               Text(
                 s.currentDevice!.baseUrl,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.outline),
               ),
           ],
         ),
@@ -112,6 +116,7 @@ class _SessionListPageState extends State<SessionListPage> {
     if (s.loading && s.sessions.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    final items = groupSessionsByRecency(s.sessions);
     return RefreshIndicator(
       onRefresh: s.refresh,
       child: s.sessions.isEmpty
@@ -127,9 +132,11 @@ class _SessionListPageState extends State<SessionListPage> {
             )
           : ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: s.sessions.length,
+              itemCount: items.length,
               itemBuilder: (_, i) {
-                final item = s.sessions[i];
+                final entry = items[i];
+                if (entry is String) return ListSectionHeader(label: entry);
+                final item = entry as SessionSummary;
                 return SessionTile(
                   session: item,
                   onTap: () => _openChat(item.sessionId, item.displayName,

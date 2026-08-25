@@ -84,10 +84,17 @@ class ChatMessage {
   final bool isUser;
   final List<ChatBlock> blocks;
 
+  /// Event time (epoch ms); 0 when unknown.
+  final int time;
+
   /// True while this bubble is the in-progress streaming placeholder.
   bool streaming;
 
-  ChatMessage({required this.isUser, required this.blocks, this.streaming = false});
+  ChatMessage(
+      {required this.isUser,
+      required this.blocks,
+      this.time = 0,
+      this.streaming = false});
 
   String get text =>
       blocks.where((b) => !b.isReasoning).map((b) => b.text).join();
@@ -135,14 +142,20 @@ ChatMessage? messageFromEvent(Map<String, dynamic> event) {
     if (source is! Map || source['kind'] != 'user') return null;
     final blocks = _blocksFromContent(data['content']);
     if (blocks.isEmpty) return null;
-    return ChatMessage(isUser: true, blocks: blocks);
+    return ChatMessage(
+        isUser: true,
+        blocks: blocks,
+        time: (event['time'] as num?)?.toInt() ?? 0);
   }
   if (type == 'assistant/message') {
     final message = data['message'];
     if (message is! Map) return null;
     final blocks = _blocksFromContent(message['content']);
     if (blocks.isEmpty) return null;
-    return ChatMessage(isUser: false, blocks: blocks);
+    return ChatMessage(
+        isUser: false,
+        blocks: blocks,
+        time: (event['time'] as num?)?.toInt() ?? 0);
   }
   return null;
 }
@@ -180,6 +193,45 @@ String formatTime(int epochMs) {
   }
   return '${two(dt.month)}-${two(dt.day)} $hm';
 }
+
+// ---- date grouping ----
+
+/// Chat message separator label: 今天 / 昨天 / `M月d日` (different year:
+/// `yyyy年M月d日`). [now] is injectable for tests.
+String dateSeparatorLabel(int epochMs, {DateTime? now}) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(epochMs);
+  final n = now ?? DateTime.now();
+  final diff =
+      DateTime(n.year, n.month, n.day).difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+  if (diff <= 0) return '今天';
+  if (diff == 1) return '昨天';
+  if (dt.year == n.year) return '${dt.month}月${dt.day}日';
+  return '${dt.year}年${dt.month}月${dt.day}日';
+}
+
+/// Whether two timestamps fall on different calendar days (local time).
+bool isDifferentDay(int prevMs, int curMs) {
+  final a = DateTime.fromMillisecondsSinceEpoch(prevMs);
+  final b = DateTime.fromMillisecondsSinceEpoch(curMs);
+  return a.year != b.year || a.month != b.month || a.day != b.day;
+}
+
+/// Coarse recency bucket for session lists: 0 = 今天, 1 = 昨天, 2 = 更早
+/// (epochMs <= 0 counts as 更早).
+int recencyBucket(int epochMs, {DateTime? now}) {
+  if (epochMs <= 0) return 2;
+  final dt = DateTime.fromMillisecondsSinceEpoch(epochMs);
+  final n = now ?? DateTime.now();
+  final diff =
+      DateTime(n.year, n.month, n.day).difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+  if (diff <= 0) return 0;
+  if (diff == 1) return 1;
+  return 2;
+}
+
+/// Display label of a [recencyBucket].
+String recencyBucketLabel(int bucket) =>
+    const ['今天', '昨天', '更早'][bucket.clamp(0, 2)];
 
 /// One directory row of a `host.listDirectory` listing (child or crumb).
 class DirectoryEntry {
@@ -496,6 +548,24 @@ List<ProjectGroup> groupSessionsByCwd(
 List<SessionSummary> unknownCwdSessions(List<SessionSummary> sessions) =>
     sessions.where((s) => s.cwd == null || s.cwd!.isEmpty).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+/// Flatten sessions (expected updatedAt descending) into a display list with
+/// recency group labels ('今天' / '昨天' / '更早') interleaved: entries are
+/// String labels or SessionSummary rows.
+List<Object> groupSessionsByRecency(List<SessionSummary> sessions,
+    {DateTime? now}) {
+  final items = <Object>[];
+  int? last;
+  for (final s in sessions) {
+    final b = recencyBucket(s.updatedAt, now: now);
+    if (b != last) {
+      items.add(recencyBucketLabel(b));
+      last = b;
+    }
+    items.add(s);
+  }
+  return items;
+}
 
 // ---- prompt content assembly ----
 

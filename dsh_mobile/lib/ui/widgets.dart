@@ -90,7 +90,7 @@ class SessionTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -134,6 +134,25 @@ class SessionTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Muted left-aligned group label for list sections (date buckets etc.).
+class ListSectionHeader extends StatelessWidget {
+  final String label;
+  const ListSectionHeader({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium
+            ?.copyWith(color: theme.colorScheme.outline),
       ),
     );
   }

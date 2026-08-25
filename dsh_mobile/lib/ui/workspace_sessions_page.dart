@@ -92,6 +92,7 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
                 item.cwd != null && normalizePath(item.cwd!) == path)
             .toList())
         : unknownCwdSessions(s.sessions);
+    final items = groupSessionsByRecency(sessions);
     return Scaffold(
       appBar: AppBar(
         title: path == null
@@ -102,7 +103,11 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
                   Text(widget.title),
                   Text(
                     path,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(
+                            color: Theme.of(context).colorScheme.outline),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -139,9 +144,13 @@ class _WorkspaceSessionsPageState extends State<WorkspaceSessionsPage> {
               )
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: sessions.length,
+                itemCount: items.length,
                 itemBuilder: (_, i) {
-                  final item = sessions[i];
+                  final entry = items[i];
+                  if (entry is String) {
+                    return ListSectionHeader(label: entry);
+                  }
+                  final item = entry as SessionSummary;
                   return SessionTile(
                     session: item,
                     onTap: () => _openChat(item.sessionId, item.displayName,

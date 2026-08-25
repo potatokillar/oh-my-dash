@@ -91,7 +91,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => WorkspaceSessionsPage(
@@ -146,7 +146,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => WorkspaceSessionsPage(

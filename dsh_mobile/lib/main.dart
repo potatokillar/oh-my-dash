@@ -52,38 +52,80 @@ class _DshAppState extends State<DshApp> {
     final allowed = await showDialog<bool>(
       context: ctx,
       barrierDismissible: false,
-      builder: (dctx) => AlertDialog(
-        title: const Text('工具调用审批'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Agent 请求调用工具：'),
-            const SizedBox(height: 8),
-            Text(
-              req.toolName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontFamily: 'monospace',
+      builder: (dctx) {
+        final scheme = Theme.of(dctx).colorScheme;
+        return AlertDialog(
+          title: const Text('工具调用审批'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Agent 请求调用工具：',
+                style: Theme.of(dctx)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: scheme.outline),
               ),
-            ),
-            if (req.reason != null && req.reason!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(req.reason!, style: Theme.of(dctx).textTheme.bodySmall),
+              const SizedBox(height: 10),
+              // Tool name in an accent-tinted icon block.
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: scheme.outlineVariant.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.build_outlined,
+                        size: 18, color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        req.toolName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (req.reason != null && req.reason!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  req.reason!,
+                  style: Theme.of(dctx)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.outline),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dctx, false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                side: const BorderSide(color: Colors.redAccent),
+              ),
+              child: const Text('拒绝'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dctx, true),
+              child: const Text('允许一次'),
+            ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dctx, false),
-            child: const Text('拒绝', style: TextStyle(color: Colors.redAccent)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dctx, true),
-            child: const Text('允许一次'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     _openApprovals.remove(req.approvalId);
     if (allowed == null) return;
@@ -111,7 +153,9 @@ class _DshAppState extends State<DshApp> {
       theme: ThemeData(
         colorScheme: scheme,
         useMaterial3: true,
-        scaffoldBackgroundColor: scheme.surface,
+        // Near-black backdrop: cards/dialogs keep the violet-tinted surfaces
+        // for layering, the page ground drops to almost pure black.
+        scaffoldBackgroundColor: const Color(0xFF0A0A0F),
         appBarTheme: AppBarTheme(
           backgroundColor: scheme.surfaceContainer,
           scrolledUnderElevation: 0,
@@ -120,13 +164,19 @@ class _DshAppState extends State<DshApp> {
           color: scheme.surfaceContainer,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.35),
+            ),
           ),
         ),
         dialogTheme: DialogThemeData(
           backgroundColor: scheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.35),
+            ),
           ),
         ),
         bottomSheetTheme: BottomSheetThemeData(

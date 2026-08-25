@@ -491,4 +491,50 @@ void main() {
       expect(m.blocks.single.text, '图片');
     });
   });
+
+  group('date grouping', () {
+    final now = DateTime(2026, 8, 25, 15, 0);
+    int at(int y, int m, int d, [int h = 12]) =>
+        DateTime(y, m, d, h).millisecondsSinceEpoch;
+
+    test('dateSeparatorLabel: 今天/昨天/同年/跨年', () {
+      expect(dateSeparatorLabel(at(2026, 8, 25, 9), now: now), '今天');
+      expect(dateSeparatorLabel(at(2026, 8, 24, 23), now: now), '昨天');
+      expect(dateSeparatorLabel(at(2026, 1, 2), now: now), '1月2日');
+      expect(dateSeparatorLabel(at(2025, 12, 31), now: now), '2025年12月31日');
+    });
+
+    test('isDifferentDay crosses midnight only', () {
+      expect(isDifferentDay(at(2026, 8, 25, 9), at(2026, 8, 25, 22)), isFalse);
+      expect(isDifferentDay(at(2026, 8, 24, 23), at(2026, 8, 25, 0)), isTrue);
+    });
+
+    test('recencyBucket: 0/1/2 and non-positive timestamps', () {
+      expect(recencyBucket(at(2026, 8, 25, 1), now: now), 0);
+      expect(recencyBucket(at(2026, 8, 24, 1), now: now), 1);
+      expect(recencyBucket(at(2026, 8, 23, 23), now: now), 2);
+      expect(recencyBucket(0, now: now), 2);
+      expect(recencyBucketLabel(0), '今天');
+      expect(recencyBucketLabel(1), '昨天');
+      expect(recencyBucketLabel(2), '更早');
+    });
+
+    test('groupSessionsByRecency interleaves labels in desc order', () {
+      SessionSummary sess(String id, int ms) => SessionSummary(
+          sessionId: id, updatedAt: ms, running: false, blank: false);
+      final items = groupSessionsByRecency([
+        sess('a', at(2026, 8, 25, 14)),
+        sess('b', at(2026, 8, 25, 9)),
+        sess('c', at(2026, 8, 24, 20)),
+        sess('d', at(2026, 1, 1)),
+      ], now: now);
+      expect(
+          items.map((e) => e is String ? e : (e as SessionSummary).sessionId),
+          ['今天', 'a', 'b', '昨天', 'c', '更早', 'd']);
+    });
+
+    test('groupSessionsByRecency with empty input yields empty list', () {
+      expect(groupSessionsByRecency(const [], now: now), isEmpty);
+    });
+  });
 }

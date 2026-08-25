@@ -183,7 +183,21 @@ class _DeviceListPageState extends State<DeviceListPage> {
   Widget build(BuildContext context) {
     final devices = widget.state.devices;
     return Scaffold(
-      appBar: AppBar(title: const Text('DSH 设备')),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('设备'),
+            Text(
+              '选择要连接的主机',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.outline),
+            ),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -239,7 +253,7 @@ class _DeviceCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -250,14 +264,14 @@ class _DeviceCard extends StatelessWidget {
                   IconBadge(
                     icon: Icons.dns,
                     color: theme.colorScheme.primary,
-                    size: 48,
+                    size: 52,
                   ),
                   Positioned(
                     right: 0,
                     bottom: 0,
                     child: Container(
-                      width: 12,
-                      height: 12,
+                      width: 13,
+                      height: 13,
                       decoration: BoxDecoration(
                         color: statusColor,
                         shape: BoxShape.circle,
@@ -265,6 +279,16 @@ class _DeviceCard extends StatelessWidget {
                           color: theme.colorScheme.surfaceContainer,
                           width: 2,
                         ),
+                        // Soft glow so an online host reads at a glance.
+                        boxShadow: loading
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: statusColor.withValues(alpha: 0.6),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
                       ),
                     ),
                   ),

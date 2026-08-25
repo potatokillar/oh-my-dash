@@ -82,4 +82,4 @@
 
 - **dsh-remote-access 插件**：dsh profile bundle，为远程客户端挂载应用内目录浏览后端、声明式追加信任主机；安装 `dsh plugin --profile web add`
 - **部署**：dsh web 绑回环，经 `tailscale serve` TCP 转发到 tailnet（`http://100.103.29.13:3080`），APK 分发通道 `:8080`
-- **协议验证脚本**（`dsh-client-probe/`）：全链路 RPC 验证（probe.mjs）、双端同步验证（sync-test.mjs）
+- **协议验证脚本**（`dsh-remote-access/scripts/`）：全链路 RPC 验证（probe.mjs）、双端同步验证（sync-test.mjs）

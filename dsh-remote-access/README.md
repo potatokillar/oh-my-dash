@@ -29,6 +29,17 @@ dsh plugin --profile web remove dsh-remote-access     # 移除
 
 每条必须是规范的 `host[:port]` 字面量（栅栏会做 WHATWG 规范化校验，写错会启动报错）。该文件被热重载，保存即生效。
 
+## 协议验证脚本（`scripts/`）
+
+零依赖 Node 脚本（Node >= 22），验证第三方客户端接入 dsh 的完整链路，也可当作参考实现：
+
+```sh
+node scripts/probe.mjs [baseUrl]       # 全链路：握手 → 列表 → 建会话 → 历史 → WS 事件流 → prompt 一轮
+node scripts/sync-test.mjs [baseUrl]   # 双端同步：A 端发消息，B 端事件流实时可见
+```
+
+默认连 `http://127.0.0.1:3080`；验证远程通道时换成 `http://<tailscale-ip>:3080`。
+
 ## 网络打通（本插件范围之外）
 
 dsh 的 webserver 只绑 `127.0.0.1`（`--host 0.0.0.0` 被官方有意禁用：web 端**没有认证层**，暴露到网络等于开放远程代码执行）。远程访问需要你自己选一种安全通道：

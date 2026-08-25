@@ -3,14 +3,13 @@
 本仓库是围绕自托管 dsh（DeepSeek Harness）的远程访问工具链，包含：
 
 - `dsh-mobile-react/` — React + Capacitor Android 客户端（主产物，UI 为 React 重写版）
-- `dsh-remote-access/` — dsh profile 插件 bundle
-- `dsh-client-probe/` — 协议验证脚本（零依赖 Node）
+- `dsh-remote-access/` — dsh profile 插件 bundle（含 `scripts/` 协议验证脚本，零依赖 Node）
 
 ## dsh-mobile-react 架构要点
 
 - UI：`src/pages/` + `src/components/`（React 19 + Vite + Tailwind + shadcn/ui），页面不直接碰网络
 - 数据层：页面全部走 `trpc.*` hooks（@trpc/react-query），但**没有服务器**——`src/providers/trpc.tsx` 用自定义 link 直调 `src/api/` 下的本地路由（`createCallerFactory`，零 HTTP，无 transformer，Date 原生透传）
-- 本地路由（`src/api/`）的数据源 = 真实 dsh 协议客户端（`src/lib/dsh/`：一元 RPC `POST /api/<method>` + WebSocket `/api/events.mux`，协议类型以 dsh 包内 `dsh-host-apiproxy/lib/types/api/*.d.ts` 为准，`dsh-client-probe/` 可验证链路）+ localStorage（设备列表、本地数值 sessionId ↔ 远端 sessionId 映射、已注册项目）
+- 本地路由（`src/api/`）的数据源 = 真实 dsh 协议客户端（`src/lib/dsh/`：一元 RPC `POST /api/<method>` + WebSocket `/api/events.mux`，协议类型以 dsh 包内 `dsh-host-apiproxy/lib/types/api/*.d.ts` 为准，`dsh-remote-access/scripts/` 可验证链路）+ localStorage（设备列表、本地数值 sessionId ↔ 远端 sessionId 映射、已注册项目）
 - 路由用 HashRouter（Capacitor 本地静态服务不支持 history 回退）
 - 设备均为 tailnet 内网 http:// 明文，AndroidManifest 已开 `usesCleartextTraffic`，勿关
 - **App 内网络必须全走原生层**：dsh `/api` 信任栅栏要求浏览器请求 `Origin == Host` 且拒绝 `Sec-Fetch-Site: cross-site`（HTTP 与 WS upgrade 同规则），跨源浏览器请求一律 403。因此一元 RPC 靠 `CapacitorHttp` 原生桥（capacitor.config.ts 已启用），`/api/events.mux` 下行靠自研 Kotlin 插件 `DshWsPlugin`（OkHttp，见 `android/app/.../DshWsPlugin.kt` + `src/lib/dsh/nativeWs.ts`）；浏览器 dev 环境用 vite 代理绕行（见下调试回路）

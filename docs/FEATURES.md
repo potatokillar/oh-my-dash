@@ -2,7 +2,7 @@
 
 > 版本：v2.0.0+9 · 本文档只描述已实现的功能，不含规划项。
 >
-> v2.0.0 起客户端由 Flutter 重写为 React + Capacitor（`dsh-mobile-react/`），功能口径不变；旧 Flutter 版（`dsh_mobile/`）废弃保留。
+> v2.0.0 起客户端由 Flutter 重写为 React + Capacitor（`dsh-mobile-react/`），功能口径不变；Flutter 旧版已从仓库移除（git 历史可查）。
 
 ## 1. 设备管理
 

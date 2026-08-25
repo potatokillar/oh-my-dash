@@ -4,12 +4,12 @@
 
 ## 组成
 
-- **`dsh-mobile/`** — React + Capacitor Android 客户端（v2.0.0 起）：多设备管理（设备 → 项目/会话 → 对话）、项目（workspace）列表、服务器端目录浏览、远程审批（允许一次/拒绝）、实时事件流同步（手机发的消息 PC 浏览器可见，反之亦然）。
-- **`dsh-remote-access/`** — dsh profile 插件 bundle：为远程客户端挂载应用内目录选择器（browse 后端），并以声明式配置向 `/api` 信任栅栏追加主机。安装：`dsh plugin --profile web add file:./dsh-remote-access`。`scripts/` 内有零依赖 Node 协议验证脚本（`probe.mjs` 全链路、`sync-test.mjs` 双端同步），也是第三方客户端的参考实现。
+- **`mobile/`** — React + Capacitor Android 客户端（v2.0.0 起）：多设备管理（设备 → 项目/会话 → 对话）、项目（workspace）列表、服务器端目录浏览、远程审批（允许一次/拒绝）、实时事件流同步（手机发的消息 PC 浏览器可见，反之亦然）。
+- **`server-plugin/`** — dsh profile 插件 bundle：为远程客户端挂载应用内目录选择器（browse 后端），并以声明式配置向 `/api` 信任栅栏追加主机。安装：`dsh plugin --profile web add file:./server-plugin`。`scripts/` 内有零依赖 Node 协议验证脚本（`probe.mjs` 全链路、`sync-test.mjs` 双端同步），也是第三方客户端的参考实现。
 
 ## 部署要点
 
-dsh web 默认只绑 `127.0.0.1` 且无认证层，远程访问请走安全通道（推荐 Tailscale：`tailscale serve --bg --tcp=3080 tcp://127.0.0.1:3080`），详见 `dsh-remote-access/README.md`。
+dsh web 默认只绑 `127.0.0.1` 且无认证层，远程访问请走安全通道（推荐 Tailscale：`tailscale serve --bg --tcp=3080 tcp://127.0.0.1:3080`），详见 `server-plugin/README.md`。
 
 ## 协议
 

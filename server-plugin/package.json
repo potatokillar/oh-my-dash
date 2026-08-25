@@ -1,5 +1,5 @@
 {
-  "name": "dsh-remote-access",
+  "name": "server-plugin",
   "version": "0.1.0",
   "description": "dsh profile bundle: remote-client access helpers (browse directory picker + extra trusted hosts) for the dsh web surface.",
   "type": "module",

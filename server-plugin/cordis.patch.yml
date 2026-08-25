@@ -1,4 +1,4 @@
-# dsh-remote-access bundle patch: remote-client access helpers.
+# server-plugin bundle patch: remote-client access helpers.
 # Applied after dsh-base and dsh-web-app (out-of-tree bundles land last in
 # dsh.profile.bundles), before the profile's own cordis.patch.yml.
 
@@ -13,7 +13,7 @@
 
     # Holds deployment-declared trusted authorities (see lib/index.js).
     - id: remote-access
-      name: 'dsh-remote-access'
+      name: 'server-plugin'
       config:
         hosts: []
 

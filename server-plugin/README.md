@@ -1,4 +1,4 @@
-# dsh-remote-access
+# server-plugin
 
 让 [dsh](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）的 web profile 更好地服务远程客户端（手机 App、其他设备浏览器）的插件 bundle。
 
@@ -10,9 +10,9 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-remote-access        # npm（发布后）
-dsh plugin --profile web add file:/path/to/dsh-remote-access  # 本地目录
-dsh plugin --profile web remove dsh-remote-access     # 移除
+dsh plugin --profile web add server-plugin        # npm（发布后）
+dsh plugin --profile web add file:/path/to/server-plugin  # 本地目录
+dsh plugin --profile web remove server-plugin     # 移除
 ```
 
 安装命令会把本包追加进 profile 的 `dsh.profile.bundles`（要求包声明了 `dsh.bundle.patch`，本包已声明）。用 `dsh --profile web --dump-config` 可以确认组合结果。

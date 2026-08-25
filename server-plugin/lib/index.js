@@ -1,5 +1,5 @@
 /**
- * dsh-remote-access: the remoteAccess service row.
+ * server-plugin: the remoteAccess service row.
  *
  * Holds the deployment's extra trusted authorities for the /api browser-trust
  * fence. The bundle patch concatenates them onto the connection row's

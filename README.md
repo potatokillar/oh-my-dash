@@ -1,16 +1,58 @@
-# oh-my-dash
+# DSH — 手机端 AI 对话客户端（React + Node 全栈架构）
 
-围绕自托管 [dsh](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）的远程访问工具链：手机 App、服务器插件、协议验证脚本。
+移动端优先的 AI 对话应用：设备管理、按 cwd 分组的项目列表、目录浏览器、多会话管理、
+SSE 流式聊天（推理折叠 / 图片附件 / 停止 / 快捷指令）、模型与推理档位切换、远程工具审批，
+以及明暗双主题（Claude 风格暖色系设计）。
 
-## 组成
+## 技术栈
 
-- **`mobile/`** — React + Capacitor Android 客户端（v2.0.0 起）：多设备管理（设备 → 项目/会话 → 对话）、项目（workspace）列表、服务器端目录浏览、远程审批（允许一次/拒绝）、实时事件流同步（手机发的消息 PC 浏览器可见，反之亦然）。
-- **`server-plugin/`** — dsh profile 插件 bundle：为远程客户端挂载应用内目录选择器（browse 后端），并以声明式配置向 `/api` 信任栅栏追加主机。安装：`dsh plugin --profile web add file:./server-plugin`。`scripts/` 内有零依赖 Node 协议验证脚本（`probe.mjs` 全链路、`sync-test.mjs` 双端同步），也是第三方客户端的参考实现。
+- **前端**：React 19 + TypeScript + Vite + Tailwind CSS + shadcn/ui（Radix）+ react-router v7
+- **后端**：Hono + tRPC 11（端到端类型安全）
+- **数据库**：MySQL + Drizzle ORM
+- **实时**：SSE（EventSource）快照 + 增量事件推送，支持多客户端同步与断线重连
 
-## 部署要点
+## 目录结构
 
-dsh web 默认只绑 `127.0.0.1` 且无认证层，远程访问请走安全通道（推荐 Tailscale：`tailscale serve --bg --tcp=3080 tcp://127.0.0.1:3080`），详见 `server-plugin/README.md`。
+```
+api/          Hono + tRPC 服务端（设备、会话、浏览、SSE 流、模拟 Agent 引擎）
+contracts/    前后端共享类型与常量（模型、Provider、错误码）
+db/           Drizzle schema、relations、seed
+src/          React 前端（pages / components / hooks / providers）
+```
 
-## 协议
+## 本地开发
 
-客户端与 dsh host 的通信是 JSON-RPC over HTTP（`POST /api/<method>`）加两条 WebSocket 下行流（`/api/events.mux`、`/api/events.host`），无鉴权、Host 头信任栅栏。方法全表见 dsh 包内 `dsh-host-apiproxy/lib/types/api/rpc-map.d.ts`。
+```bash
+cp .env.example .env   # 填入 DATABASE_URL 等配置
+npm install
+npm run db:push        # 同步数据库表结构
+npx tsx db/seed.ts     # 可选：写入演示数据
+npm run dev            # http://localhost:3000
+```
+
+## 生产构建
+
+```bash
+npm run build
+npm start
+```
+
+或使用 Docker：
+
+```bash
+docker build -t dsh .
+docker run -p 3000:3000 --env-file .env dsh
+```
+
+## 常用命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 开发服务器（HMR，端口 3000） |
+| `npm run check` | TypeScript 类型检查 |
+| `npm run test` | Vitest 测试 |
+| `npm run db:push` | 开发期同步数据库 schema |
+| `npm run db:generate` / `db:migrate` | 生产迁移 |
+
+> 说明：仓库未提交 `package-lock.json`（体积原因），`npm install` 会自动生成；
+> `.env` 含敏感凭证，已通过 `.gitignore` 排除，请按 `.env.example` 自行配置。

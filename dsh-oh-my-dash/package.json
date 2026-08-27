@@ -1,0 +1,28 @@
+{
+  "name": "dsh-oh-my-dash",
+  "version": "0.1.0",
+  "description": "Oh-My-Dash 手机客户端 — DeepSeek Harness 插件:把 DSH 的会话/审批/目录能力暴露给移动端 Web App",
+  "type": "module",
+  "main": "dist/index.js",
+  "keywords": ["dsh-plugin", "deepseek-harness", "mobile", "agent-client"],
+  "dsh": {
+    "bundle": "cordis.patch.yml"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.8.3",
+    "@hono/node-server": "^1.14.3",
+    "zod": "^4.3.5"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.1.0-rc.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "~5.9.3"
+  }
+}

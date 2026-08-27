@@ -1,0 +1,10 @@
+# 把插件挂进 DSH 的 web profile
+# 安装:dsh plugin --profile web add github:potatokillar/dsh-oh-my-dash
+plugins:
+  dsh-oh-my-dash:
+    $ntry: "dsh-oh-my-dash"
+    config:
+      # 插件 HTTP 服务端口;0 = 随机可用端口
+      port: 0
+      # 静态资源目录(前端 build 产物)
+      clientDir: "client/dist"

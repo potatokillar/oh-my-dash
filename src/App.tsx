@@ -31,7 +31,13 @@ export default function App() {
         <Route path="/chat/:sessionId" element={<ChatPage />} />
         <Route path="*" element={<Entry />} />
       </Routes>
-      <Toaster position="top-center" theme={theme} />
+      <Toaster
+        position="top-center"
+        offset={{ top: 72 }}
+        mobileOffset={{ top: 72 }}
+        expand
+        theme={theme}
+      />
     </>
   );
 }

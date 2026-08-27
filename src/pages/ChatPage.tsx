@@ -57,7 +57,15 @@ export default function ChatPage() {
   const utils = trpc.useUtils();
 
   const stream = useSessionStream(Number.isFinite(sessionId) ? sessionId : null);
-  const session = stream.session;
+  // 模型切换后立即更新界面（不等流快照刷新）
+  const [modelOverride, setModelOverride] = useState<{
+    provider: string;
+    model: string;
+    effort: string;
+  } | null>(null);
+  const session = stream.session
+    ? { ...stream.session, ...(modelOverride ?? {}) }
+    : stream.session;
 
   const { data: deviceList } = trpc.devices.list.useQuery(undefined, { staleTime: 30000 });
   const device = deviceList?.find((d) => d.id === session?.deviceId);
@@ -324,6 +332,7 @@ export default function ChatPage() {
           current={{ provider: session.provider, model: session.model, effort: session.effort }}
           failedProviders={device?.status.online ? 1 : 0}
           onSelect={(provider, model, effort) => {
+            setModelOverride({ provider, model, effort });
             setModelMut.mutate({ id: session.id, provider, model, effort });
             setModelsOpen(false);
             toast.success(`已切换到 ${modelLabel(provider, model, effort)}`);
